@@ -19,7 +19,7 @@
 - Dispatch, result ingestion, event recording, and recovery are idempotent.
 - Every provider assignment and next action has a persisted explanation.
 - The default planner may produce a deterministic four-stage graph; model planners plug into the same `Plan` schema.
-- The existing empty `.git` directory is not removed or replaced. Commit steps are recorded but skipped until this workspace becomes a valid Git repository.
+- This workspace is a valid Git repository. Complete each task with its listed focused commit after all task-specific quality gates pass.
 
 ## Review Focus
 
@@ -28,6 +28,31 @@
 - Restart reconciliation must not duplicate work or silently relaunch unknown processes; Tasks 2 and 6 test lease recovery.
 - Malformed provider JSON must return a typed error while retaining the raw line; Task 4 tests this boundary.
 - Internal composition must not update the configured target branch without approval; Task 5 tests target-branch protection.
+
+## Prioritized Implementation Queue
+
+All eight tasks are required for the MVP. The rank below is execution order, not an indication that later work is optional.
+
+| Rank | Task | Depends on | Why it is here | Completion gate |
+| ---: | --- | --- | --- | --- |
+| 1 | Task 1: Rust workspace, domain contracts, and configuration | None | Every persistence, routing, adapter, and orchestration interface uses these types and state transitions. | Domain, DAG, transition, and configuration tests pass. |
+| 2 | Task 2: SQLite state, event log, artifacts, and leases | Task 1 | Durable state and idempotent leases are prerequisites for safe execution and recovery. | Persistence, deduplication, lease recovery, redaction, and artifact tests pass. |
+| 3 | Task 3: Adaptive routing and conservative budgets | Task 1 | This is independent of storage implementation and can run alongside Task 2. It proves the capped-usage objective before orchestration depends on it. | Capability, budget, Big Pickle, prior, recency, and exploration tests pass. |
+| 4 | Task 4: Provider adapters and Herdr client | Tasks 1 and 2 | It establishes the highest-risk external contracts and needs Task 2's artifact references for raw events. | Installed CLI surfaces are recorded and all provider/Herdr contract fixtures pass. |
+| 5 | Task 5: Scheduler, next-action policy, and Git isolation | Tasks 1-4 | This is the core orchestration loop and the first point where all domain services compose. | Dispatch, repair/reroute, approval, cancellation, composition, and target-protection tests pass. |
+| 6 | Task 6: Local daemon, IPC, and crash reconciliation | Task 5 | The daemon should expose a stable protocol only after orchestration policy is settled. | Idempotent request, event replay, socket ownership, reconciliation, and shutdown tests pass. |
+| 7 | Task 7: Public CLI, planning flow, diagnostics, and terminal view | Task 6 | The public commands and TUI should be built against the real daemon contract. | CLI end-to-end tests, TUI buffer tests, release build, and operator documentation pass. |
+| 8 | Task 8: Whole-product verification and review | Tasks 1-7 | This is the release gate and requirement-coverage audit. | Full quality gates and the temporary-repository smoke test pass with the target branch unchanged. |
+
+### Execution waves
+
+1. Complete Task 1.
+2. Run Tasks 2 and 3 in parallel. If only one implementer is available, do Task 2 first because it is on the longer critical path.
+3. Complete Task 4. Run its native CLI and Herdr capability probes before writing adapter fixtures; stop and revise the adapter contract if installed flags differ from the plan.
+4. Complete Tasks 5, 6, and 7 sequentially because each fixes the interface consumed by the next.
+5. Complete Task 8 after every earlier task-specific gate passes.
+
+Critical path: `Task 1 -> Task 2 -> Task 4 -> Task 5 -> Task 6 -> Task 7 -> Task 8`.
 
 ---
 
@@ -131,7 +156,7 @@ Expected: every command exits successfully without warnings.
 
 - [ ] **Step 5: Commit**
 
-When Git is available: `git add Cargo.toml src/lib.rs src/domain.rs src/config.rs tests/domain_plan.rs && git commit -m "feat: add orchestration domain model"`
+Run: `git add Cargo.toml src/lib.rs src/domain.rs src/config.rs tests/domain_plan.rs && git commit -m "feat: add orchestration domain model"`
 
 ### Task 2: SQLite state, event log, artifacts, and leases
 
@@ -217,7 +242,7 @@ Expected: every command exits successfully.
 
 - [ ] **Step 5: Commit**
 
-When Git is available: `git add src/lib.rs src/store.rs src/artifacts.rs src/redaction.rs tests/store_recovery.rs && git commit -m "feat: persist runs and recovery state"`
+Run: `git add src/lib.rs src/store.rs src/artifacts.rs src/redaction.rs tests/store_recovery.rs && git commit -m "feat: persist runs and recovery state"`
 
 ### Task 3: Adaptive routing and conservative budgets
 
@@ -284,7 +309,7 @@ Expected: every command exits successfully.
 
 - [ ] **Step 5: Commit**
 
-When Git is available: `git add src/lib.rs src/routing.rs tests/routing_policy.rs && git commit -m "feat: add adaptive provider routing"`
+Run: `git add src/lib.rs src/routing.rs tests/routing_policy.rs && git commit -m "feat: add adaptive provider routing"`
 
 ### Task 4: Provider adapters and Herdr client
 
@@ -373,7 +398,7 @@ Expected: every command exits successfully.
 
 - [ ] **Step 6: Commit**
 
-When Git is available: `git add src/lib.rs src/providers src/herdr.rs tests/provider_contracts.rs tests/fixtures/providers && git commit -m "feat: add provider and herdr adapters"`
+Run: `git add src/lib.rs src/providers src/herdr.rs tests/provider_contracts.rs tests/fixtures/providers && git commit -m "feat: add provider and herdr adapters"`
 
 ### Task 5: Scheduler, next-action policy, and Git isolation
 
@@ -456,7 +481,7 @@ Expected: every command exits successfully.
 
 - [ ] **Step 5: Commit**
 
-When Git is available: `git add src/lib.rs src/scheduler.rs src/git.rs src/orchestrator.rs tests/orchestration_flow.rs && git commit -m "feat: orchestrate task lifecycle"`
+Run: `git add src/lib.rs src/scheduler.rs src/git.rs src/orchestrator.rs tests/orchestration_flow.rs && git commit -m "feat: orchestrate task lifecycle"`
 
 ### Task 6: Local daemon, IPC, and crash reconciliation
 
@@ -523,7 +548,7 @@ Expected: every command exits successfully.
 
 - [ ] **Step 5: Commit**
 
-When Git is available: `git add src/lib.rs src/ipc.rs src/daemon.rs tests/daemon_recovery.rs && git commit -m "feat: add durable orchestration daemon"`
+Run: `git add src/lib.rs src/ipc.rs src/daemon.rs tests/daemon_recovery.rs && git commit -m "feat: add durable orchestration daemon"`
 
 ### Task 7: Public CLI, planning flow, diagnostics, and terminal view
 
@@ -606,7 +631,7 @@ Expected: every command exits successfully.
 
 - [ ] **Step 6: Commit**
 
-When Git is available: `git add src/lib.rs src/main.rs src/cli.rs src/tui.rs tests/cli_e2e.rs README.md .gitignore && git commit -m "feat: ship orch terminal workflow"`
+Run: `git add src/lib.rs src/main.rs src/cli.rs src/tui.rs tests/cli_e2e.rs README.md .gitignore && git commit -m "feat: ship orch terminal workflow"`
 
 ### Task 8: Whole-product verification and review
 
@@ -654,4 +679,4 @@ For every Critical or Important finding, write a focused test that reproduces it
 
 - [ ] **Step 5: Commit verified fixes**
 
-When Git is available: `git add Cargo.toml Cargo.lock src tests README.md .gitignore && git commit -m "fix: address final orchestration review"`
+Run: `git add Cargo.toml Cargo.lock src tests README.md .gitignore && git commit -m "fix: address final orchestration review"`
